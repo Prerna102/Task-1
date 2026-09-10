@@ -1,0 +1,14 @@
+
+fastapi
+uvicorn[standard]
+python-multipart
+
+streamlit
+requests
+
+paddleocr
+paddlepaddle
+
+sqlalchemy
+psycopg2-binary
+pydantic
