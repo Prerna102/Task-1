@@ -22,7 +22,7 @@ from app.database import (
 
 from app.models import OCRResult
 
-from app.ocr import extract_text
+from app.ocr_1 import extract_text
 
 
 # --------------------------------------------------

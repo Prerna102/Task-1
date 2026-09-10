@@ -6,7 +6,7 @@ import shutil
 
 from app.database import Base, engine, get_db
 from app.models import OCRResult
-from app.ocr import extract_text
+from app.ocr_1 import extract_text
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -46,7 +46,7 @@ def health():
 
 
 @app.post("/ocr")
-async def perform_ocr(
+def perform_ocr(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
