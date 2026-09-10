@@ -9,7 +9,6 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from pathlib import Path
-
 import uuid
 import shutil
 
@@ -21,13 +20,11 @@ from app.database import (
 )
 
 from app.models import OCRResult
-
 from app.ocr_1 import extract_text
 
 
-# --------------------------------------------------
 # Database
-# --------------------------------------------------
+
 
 Base.metadata.create_all(
     bind=engine
@@ -48,9 +45,8 @@ app = FastAPI(
 )
 
 
-# --------------------------------------------------
 # Upload directory
-# --------------------------------------------------
+
 
 UPLOAD_DIR = Path(
     "uploads"
@@ -76,9 +72,7 @@ ALLOWED_EXTENSIONS = {
 }
 
 
-# --------------------------------------------------
 # Root
-# --------------------------------------------------
 
 @app.get("/")
 def root():
@@ -89,9 +83,8 @@ def root():
     }
 
 
-# --------------------------------------------------
 # Health
-# --------------------------------------------------
+
 
 @app.get("/health")
 def health():
@@ -101,9 +94,8 @@ def health():
     }
 
 
-# --------------------------------------------------
 # OCR endpoint
-# --------------------------------------------------
+
 
 @app.post("/api/ocr")
 async def perform_ocr(
@@ -156,9 +148,9 @@ async def perform_ocr(
 
     try:
 
-        # --------------------------------------------------
+       
         # Save uploaded file
-        # --------------------------------------------------
+     
 
         with file_path.open("wb") as buffer:
 
@@ -168,9 +160,9 @@ async def perform_ocr(
             )
 
 
-        # --------------------------------------------------
+        
         # Run OCR
-        # --------------------------------------------------
+      
 
         ocr_result = extract_text(
             str(file_path)

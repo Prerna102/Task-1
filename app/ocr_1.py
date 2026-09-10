@@ -6,9 +6,8 @@ import re
 from paddleocr import PPStructureV3
 
 
-# ============================================================
 # 1. INITIALIZE PP-STRUCTURE-V3 ONCE
-# ============================================================
+
 
 pipeline = PPStructureV3(
     lang="en",
@@ -26,9 +25,8 @@ pipeline = PPStructureV3(
 )
 
 
-# ============================================================
 # 2. HELPER
-# ============================================================
+
 
 def _result_to_dict(result: Any) -> dict:
     """
@@ -53,9 +51,8 @@ def _result_to_dict(result: Any) -> dict:
     return data.get("res", data)
 
 
-# ============================================================
 # 3. TEXT CLEANING
-# ============================================================
+
 
 def clean_text(text: str) -> str:
     """
@@ -82,7 +79,6 @@ def clean_text(text: str) -> str:
     return "\n".join(cleaned_lines)
 
 
-# ============================================================
 # 4. EXTRACT NORMAL TEXT
 # ============================================================
 
