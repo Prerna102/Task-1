@@ -7,8 +7,6 @@ from paddleocr import PPStructureV3
 
 
 # 1. INITIALIZE PP-STRUCTURE-V3 ONCE
-
-
 pipeline = PPStructureV3(
     lang="en",
 

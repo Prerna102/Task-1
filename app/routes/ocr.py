@@ -11,8 +11,6 @@ from sqlalchemy.orm import Session
 from pathlib import Path
 import uuid
 import shutil
-
-
 from app.db.database import get_db
 from app.db.models import OCRResult
 
