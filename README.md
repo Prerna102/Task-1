@@ -182,10 +182,3 @@ Upload an image using the `file` parameter.
   "confidence": 0.95
 }
 ```
-
-## Notes
-
-- This is a **Proof of Concept (POC)**.
-- The lightweight PaddleOCR pipeline is focused on text extraction.
-- Large images are resized before OCR to improve processing time.
-- Table, layout, and document parsing features are not enabled in the lightweight OCR mode.
