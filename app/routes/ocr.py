@@ -1,5 +1,5 @@
 from fastapi import (
-    FastAPI,
+    APIRouter,
     File,
     UploadFile,
     HTTPException,
@@ -13,47 +13,30 @@ import uuid
 import shutil
 
 
-from app.database import (
-    Base,
-    engine,
-    get_db,
-)
+from app.db.database import get_db
+from app.db.models import OCRResult
 
-from app.models import OCRResult
-from app.ocr_1 import extract_text
-
-
-# Database
-
-
-Base.metadata.create_all(
-    bind=engine
+from app.services.ocr_service import (
+    process_document,
 )
 
 
 # --------------------------------------------------
-# FastAPI
+# Router
 # --------------------------------------------------
 
-app = FastAPI(
-    title="PaddleOCR API",
-    description=(
-        "OCR API using FastAPI, "
-        "PaddleOCR and PostgreSQL"
-    ),
-    version="1.0.0",
-)
+router = APIRouter()
 
 
+# --------------------------------------------------
 # Upload directory
+# --------------------------------------------------
 
-
-UPLOAD_DIR = Path(
-    "uploads"
-)
+UPLOAD_DIR = Path("uploads")
 
 UPLOAD_DIR.mkdir(
-    exist_ok=True
+    parents=True,
+    exist_ok=True,
 )
 
 
@@ -72,44 +55,34 @@ ALLOWED_EXTENSIONS = {
 }
 
 
-# Root
+# --------------------------------------------------
+# POST /api/ocr
+# --------------------------------------------------
 
-@app.get("/")
-def root():
-
-    return {
-        "message": "PaddleOCR API is running",
-        "docs": "/docs",
-    }
-
-
-# Health
-
-
-@app.get("/health")
-def health():
-
-    return {
-        "status": "healthy"
-    }
-
-
-# OCR endpoint
-
-
-@app.post("/api/ocr")
+@router.post("")
 async def perform_ocr(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
+    """
+    Upload an image/document, process it with
+    PaddleOCR and save the OCR result to PostgreSQL.
+    """
+
+    # --------------------------------------------------
+    # Validate filename
+    # --------------------------------------------------
 
     if not file.filename:
-
         raise HTTPException(
             status_code=400,
             detail="No file selected.",
         )
 
+
+    # --------------------------------------------------
+    # Validate extension
+    # --------------------------------------------------
 
     extension = Path(
         file.filename
@@ -117,7 +90,6 @@ async def perform_ocr(
 
 
     if extension not in ALLOWED_EXTENSIONS:
-
         raise HTTPException(
             status_code=400,
             detail=(
@@ -129,7 +101,10 @@ async def perform_ocr(
         )
 
 
+    # --------------------------------------------------
     # Generate unique filename
+    # --------------------------------------------------
+
     file_id = str(
         uuid.uuid4()
     )
@@ -141,16 +116,15 @@ async def perform_ocr(
 
 
     file_path = (
-        UPLOAD_DIR /
-        stored_filename
+        UPLOAD_DIR / stored_filename
     )
 
 
     try:
 
-       
+        # --------------------------------------------------
         # Save uploaded file
-     
+        # --------------------------------------------------
 
         with file_path.open("wb") as buffer:
 
@@ -160,11 +134,11 @@ async def perform_ocr(
             )
 
 
-        
-        # Run OCR
-      
+        # --------------------------------------------------
+        # Run PaddleOCR
+        # --------------------------------------------------
 
-        ocr_result = extract_text(
+        ocr_result = process_document(
             str(file_path)
         )
 
@@ -176,8 +150,14 @@ async def perform_ocr(
         record = OCRResult(
             filename=file.filename,
             stored_filename=stored_filename,
-            extracted_text=ocr_result["text"],
-            confidence=ocr_result["confidence"],
+            extracted_text=ocr_result.get(
+                "text",
+                "",
+            ),
+            confidence=ocr_result.get(
+                "confidence",
+                0.0,
+            ),
         )
 
 
@@ -194,15 +174,53 @@ async def perform_ocr(
 
         return {
             "success": True,
+
             "id": record.id,
+
             "filename": file.filename,
-            "text": ocr_result["text"],
-            "confidence": ocr_result["confidence"],
+
+            "stored_filename": stored_filename,
+
+            "text": ocr_result.get(
+                "text",
+                "",
+            ),
+
+            "confidence": ocr_result.get(
+                "confidence",
+                0.0,
+            ),
+
+            "details": ocr_result.get(
+                "details",
+                [],
+            ),
+
+            "tables": ocr_result.get(
+                "tables",
+                [],
+            ),
+
+            "layout": ocr_result.get(
+                "layout",
+                [],
+            ),
+
+            "parsing": ocr_result.get(
+                "parsing",
+                [],
+            ),
+
+            "pages": ocr_result.get(
+                "pages",
+                [],
+            ),
         }
 
 
     except Exception as exc:
 
+        # Rollback database transaction
         db.rollback()
 
 
@@ -220,14 +238,17 @@ async def perform_ocr(
 
 
 # --------------------------------------------------
-# Get OCR result
+# GET /api/ocr/{ocr_id}
 # --------------------------------------------------
 
-@app.get("/api/ocr/{ocr_id}")
+@router.get("/{ocr_id}")
 def get_ocr_result(
     ocr_id: int,
     db: Session = Depends(get_db),
 ):
+    """
+    Get one OCR result by ID.
+    """
 
     result = (
         db.query(OCRResult)
@@ -239,7 +260,6 @@ def get_ocr_result(
 
 
     if not result:
-
         raise HTTPException(
             status_code=404,
             detail="OCR result not found.",
@@ -256,13 +276,16 @@ def get_ocr_result(
 
 
 # --------------------------------------------------
-# List OCR results
+# GET /api/ocr
 # --------------------------------------------------
 
-@app.get("/api/ocr")
+@router.get("")
 def list_ocr_results(
     db: Session = Depends(get_db),
 ):
+    """
+    Return all OCR results.
+    """
 
     results = (
         db.query(OCRResult)
