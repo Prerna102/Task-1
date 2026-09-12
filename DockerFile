@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# System dependencies
+# System dependencies required by PaddleOCR/OpenCV
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgl1 \
@@ -30,11 +30,7 @@ COPY app ./app
 # Create upload directory
 RUN mkdir -p /app/uploads
 
-
-
-# Backend and Streamlit ports
 EXPOSE 8000
 EXPOSE 8501
 
-
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 & streamlit run app/streamlit_app.py --server.address=0.0.0.0 --server.port=8501"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
