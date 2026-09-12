@@ -4,85 +4,51 @@ services:
 
 
   postgres:
-
     image: postgres:16
-
     container_name: ocr_postgres
-
     restart: unless-stopped
 
     environment:
-
-      POSTGRES_DB: ocr_db
-
-      POSTGRES_USER: ocr_user
-
-      POSTGRES_PASSWORD: ocr_password
-
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
     ports:
-
       - "5432:5432"
 
-
     volumes:
-
       - postgres_data:/var/lib/postgresql/data
 
-
     healthcheck:
-
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ocr_user -d ocr_db"
-        ]
-
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
-
       timeout: 5s
-
       retries: 10
-
 
   # FastAPI + PaddleOCR
 
   api:
-
     build:
       context: .
-
+      dockerfile: Dockerfile
 
     container_name: paddleocr_api
-
-
     restart: unless-stopped
 
-
     depends_on:
-
       postgres:
-
         condition: service_healthy
 
-
     environment:
-
-      DATABASE_URL: postgresql+psycopg2://ocr_user:ocr_password@postgres:5432/ocr_db
-
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 
     ports:
-
       - "8000:8000"
 
-
     volumes:
-
       - ./uploads:/app/uploads
 
-
     command:
-
       [
         "uvicorn",
         "app.main:app",
@@ -92,7 +58,6 @@ services:
         "8000"
       ]
 
-
   # Streamlit frontend
  
 
@@ -100,6 +65,7 @@ services:
 
     build:
       context: .
+      dockerfile: Dockerfile
 
 
     container_name: paddleocr_frontend
