@@ -10,9 +10,13 @@ Project/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py
-│   ├── database.py
-│   ├── models.py
-│   ├── streamlit_app.py
+│   ├── db/
+│       ├── __init__.py
+│   │   └── database.py
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   
+│   
 │   │
 │   ├── api/
 │   │   ├── __init__.py
@@ -20,7 +24,13 @@ Project/
 │   │       ├── __init__.py
 │   │       ├── health.py
 │   │       └── ocr.py
-│   │
+    ├── core/
+│       ├── __init__.py
+│   │   └── config.py
+│   │ 
+│   |── frontend/
+│       ├── __init__.py
+│   │   └── streamlit_app.py
 │   └── services/
 │       ├── __init__.py
 │       └── ocr_service.py
@@ -31,8 +41,6 @@ Project/
 │   ├── test_health.py
 │   └── test_ocr.py
 │
-├── .env
-├── .env.example
 ├── .gitignore
 ├── .dockerignore
 ├── Dockerfile
@@ -83,7 +91,7 @@ set DATABASE_URL=sqlite:///./sqlite.db
 ### 5. Start FastAPI
 
 ```cmd
-set PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT=0
+
 uvicorn app.main:app --reload
 ```
 
@@ -116,7 +124,7 @@ set API_URL=http://127.0.0.1:8000
 Start Streamlit:
 
 ```cmd
-streamlit run app/streamlit_app.py
+streamlit run app/frontend/streamlit_app.py
 ```
 
 Streamlit:
