@@ -2,42 +2,41 @@ from pathlib import Path
 from typing import Any
 import json
 import re
-import os
-
-from paddleocr import PPStructureV3
-
-from app.services.data_preprocessing import preprocess_image
+from PIL import Image
+import tempfile
+from paddleocr import PaddleOCR
 
 
-# 1. INITIALIZE PP-STRUCTURE-V3 
+# ============================================================
+# 1. INITIALIZE LIGHTWEIGHT OCR PIPELINE ONCE
+# ============================================================
 
-
-pipeline = PPStructureV3(
+ocr = PaddleOCR(
     lang="en",
-    use_doc_orientation_classify=False,
-    use_doc_unwarping=False,
-    use_textline_orientation=False,
 )
 
 
 # ============================================================
-# 2. HELPER
+# 2. HELPERS
 # ============================================================
 
 def _result_to_dict(result: Any) -> dict:
     """
-    Convert PaddleOCR Result object to Python dictionary.
+    Convert PaddleOCR Result object to a Python dictionary.
     """
 
-    data = result.json
+    try:
+        data = result.json
+    except Exception:
+        data = result
 
     if isinstance(data, str):
         data = json.loads(data)
 
-    return data.get(
-        "res",
-        data
-    )
+    if not isinstance(data, dict):
+        return {}
+
+    return data.get("res", data)
 
 
 # ============================================================
@@ -61,56 +60,46 @@ def clean_text(text: str) -> str:
         if not line:
             continue
 
-        line = re.sub(
-            r"\s+",
-            " ",
-            line
-        )
+        # Replace multiple spaces with one
+        line = re.sub(r"\s+", " ", line)
 
-        cleaned_lines.append(
-            line
-        )
+        cleaned_lines.append(line)
 
-    return "\n".join(
-        cleaned_lines
-    )
+    return "\n".join(cleaned_lines)
 
 
 # ============================================================
-# 4. EXTRACT NORMAL TEXT
+# 4. EXTRACT NORMAL OCR TEXT
 # ============================================================
 
-def extract_text_from_result(
-    data: dict
-) -> dict:
+def extract_text_from_result(data: dict) -> dict:
     """
-    Extract normal OCR text from PPStructureV3 result.
+    Extract normal OCR text from PaddleOCR result.
+
+    Compatible with the existing FastAPI response:
+        text
+        confidence
+        details
     """
 
-    ocr_result = data.get(
-        "overall_ocr_res",
-        {}
-    )
+    # PaddleOCR normally returns OCR results under rec_texts,
+    # rec_scores and rec_boxes.
 
-    texts = ocr_result.get(
-        "rec_texts",
-        []
-    )
+    texts = data.get("rec_texts", [])
+    scores = data.get("rec_scores", [])
+    boxes = data.get("rec_boxes", [])
 
-    scores = ocr_result.get(
-        "rec_scores",
-        []
-    )
+    # Some versions may place them under OCR result.
+    if not texts:
+        ocr_result = data.get("ocr_res", {})
 
-    boxes = ocr_result.get(
-        "rec_boxes",
-        []
-    )
+        if isinstance(ocr_result, dict):
+            texts = ocr_result.get("rec_texts", [])
+            scores = ocr_result.get("rec_scores", [])
+            boxes = ocr_result.get("rec_boxes", [])
 
     extracted_text = []
-
     detailed_text = []
-
     valid_scores = []
 
     for index, text in enumerate(texts):
@@ -127,16 +116,9 @@ def extract_text_from_result(
         if index < len(scores):
 
             try:
+                score = float(scores[index])
 
-                score = float(
-                    scores[index]
-                )
-
-            except (
-                TypeError,
-                ValueError
-            ):
-
+            except (TypeError, ValueError):
                 score = 0.0
 
         # ----------------------------------------------------
@@ -146,433 +128,144 @@ def extract_text_from_result(
         box = None
 
         if index < len(boxes):
-
             box = boxes[index]
 
         # ----------------------------------------------------
         # Store text
         # ----------------------------------------------------
 
-        extracted_text.append(
-            text
-        )
+        extracted_text.append(str(text))
 
         detailed_text.append(
             {
-                "text": text,
-
-                "confidence": round(
-                    score,
-                    4
-                ),
-
+                "text": str(text),
+                "confidence": round(score, 4),
                 "box": box,
             }
         )
 
-        valid_scores.append(
-            score
-        )
+        valid_scores.append(score)
 
-    text = "\n".join(
-        extracted_text
-    )
+    text = "\n".join(extracted_text)
 
     average_confidence = (
-        sum(valid_scores)
-        / len(valid_scores)
+        sum(valid_scores) / len(valid_scores)
         if valid_scores
         else 0.0
     )
 
     return {
-        "text": clean_text(
-            text
-        ),
-
-        "confidence": round(
-            average_confidence,
-            4
-        ),
-
+        "text": clean_text(text),
+        "confidence": round(average_confidence, 4),
         "details": detailed_text,
     }
 
 
 # ============================================================
-# 5. EXTRACT DOCUMENT LAYOUT
+# 5. EMPTY COMPATIBILITY HELPERS
 # ============================================================
 
-def extract_layout(
-    data: dict
-) -> list:
+def extract_layout(data: dict) -> list:
     """
-    Extract document layout information.
+    Lightweight OCR does not perform document layout detection.
+
+    Kept for API compatibility with the previous PPStructureV3
+    implementation.
     """
 
-    layout_result = data.get(
-        "layout_det_res",
-        {}
-    )
+    return []
 
-    boxes = layout_result.get(
-        "boxes",
-        []
-    )
 
-    layout = []
+def extract_tables(data: dict) -> list:
+    """
+    Lightweight OCR does not perform table structure recognition.
 
-    for box in boxes:
+    Kept for API compatibility with the previous PPStructureV3
+    implementation.
+    """
 
-        try:
+    return []
 
-            score = float(
-                box.get(
-                    "score",
-                    0.0
-                )
-            )
 
-        except (
-            TypeError,
-            ValueError
-        ):
+def extract_parsing_results(data: dict) -> list:
+    """
+    Lightweight OCR does not perform document parsing or
+    reading-order analysis.
 
-            score = 0.0
+    Kept for API compatibility with the previous PPStructureV3
+    implementation.
+    """
 
-        layout.append(
-            {
-                "label": box.get(
-                    "label"
-                ),
-
-                "confidence": round(
-                    score,
-                    4
-                ),
-
-                "bbox": box.get(
-                    "coordinate"
-                ),
-            }
-        )
-
-    return layout
+    return []
 
 
 # ============================================================
-# 6. EXTRACT TABLES
+# 6. PROCESS ONE PAGE / IMAGE
 # ============================================================
 
-def extract_tables(
-    data: dict
-) -> list:
+def process_page(result: Any) -> dict:
     """
-    Extract tables detected by PPStructureV3.
-    """
+    Process one PaddleOCR prediction result.
 
-    table_results = data.get(
-        "table_res_list",
-        []
-    )
-
-    tables = []
-
-    for table_index, table in enumerate(
-        table_results
-    ):
-
-        # ----------------------------------------------------
-        # Cell bounding boxes
-        # ----------------------------------------------------
-
-        cell_boxes = table.get(
-            "cell_box_list",
-            []
-        )
-
-        # ----------------------------------------------------
-        # HTML representation
-        # ----------------------------------------------------
-
-        html = table.get(
-            "pred_html",
-            ""
-        )
-
-        # ----------------------------------------------------
-        # OCR inside cells
-        # ----------------------------------------------------
-
-        table_ocr = table.get(
-            "table_ocr_pred",
-            {}
-        )
-
-        cell_texts = table_ocr.get(
-            "rec_texts",
-            []
-        )
-
-        cell_scores = table_ocr.get(
-            "rec_scores",
-            []
-        )
-
-        cell_boxes_from_ocr = table_ocr.get(
-            "rec_boxes",
-            []
-        )
-
-        # ----------------------------------------------------
-        # Build cells
-        # ----------------------------------------------------
-
-        cells = []
-
-        for index, text in enumerate(
-            cell_texts
-        ):
-
-            if not text:
-                continue
-
-            score = 0.0
-
-            if index < len(cell_scores):
-
-                try:
-
-                    score = float(
-                        cell_scores[index]
-                    )
-
-                except (
-                    TypeError,
-                    ValueError
-                ):
-
-                    score = 0.0
-
-            box = None
-
-            if index < len(
-                cell_boxes_from_ocr
-            ):
-
-                box = cell_boxes_from_ocr[
-                    index
-                ]
-
-            elif index < len(
-                cell_boxes
-            ):
-
-                box = cell_boxes[
-                    index
-                ]
-
-            cells.append(
-                {
-                    "text": clean_text(
-                        text
-                    ),
-
-                    "confidence": round(
-                        score,
-                        4
-                    ),
-
-                    "bbox": box,
-                }
-            )
-
-        # ----------------------------------------------------
-        # Table confidence
-        # ----------------------------------------------------
-
-        table_scores = [
-            cell["confidence"]
-            for cell in cells
-        ]
-
-        table_confidence = (
-            sum(table_scores)
-            / len(table_scores)
-            if table_scores
-            else 0.0
-        )
-
-        # ----------------------------------------------------
-        # Store table
-        # ----------------------------------------------------
-
-        tables.append(
-            {
-                "table_id": table_index,
-
-                "html": html,
-
-                "cells": cells,
-
-                "confidence": round(
-                    table_confidence,
-                    4
-                ),
-            }
-        )
-
-    return tables
-
-
-# ============================================================
-# 7. EXTRACT PARSING RESULTS
-# ============================================================
-
-def extract_parsing_results(
-    data: dict
-) -> list:
-    """
-    Extract reading-order/layout parsing results.
+    Returns the same response structure expected by
+    the existing FastAPI application.
     """
 
-    parsing_results = data.get(
-        "parsing_res_list",
-        []
-    )
-
-    blocks = []
-
-    for block in parsing_results:
-
-        blocks.append(
-            {
-                "label": block.get(
-                    "block_label"
-                ),
-
-                "bbox": block.get(
-                    "block_bbox"
-                ),
-
-                "content": block.get(
-                    "block_content",
-                    ""
-                ),
-
-                "order": block.get(
-                    "block_order"
-                ),
-            }
-        )
-
-    return blocks
-
-
-# ============================================================
-# 8. PROCESS ONE PAGE
-# ============================================================
-
-def process_page(
-    result: Any
-) -> dict:
-    """
-    Process one PPStructureV3 prediction result.
-    """
-
-    data = _result_to_dict(
-        result
-    )
+    data = _result_to_dict(result)
 
     # --------------------------------------------------------
     # Normal OCR text
     # --------------------------------------------------------
 
-    text_result = extract_text_from_result(
-        data
-    )
+    text_result = extract_text_from_result(data)
 
     # --------------------------------------------------------
-    # Document layout
+    # Lightweight OCR does not calculate these
     # --------------------------------------------------------
 
-    layout = extract_layout(
-        data
-    )
-
-    # --------------------------------------------------------
-    # Tables
-    # --------------------------------------------------------
-
-    tables = extract_tables(
-        data
-    )
-
-    # --------------------------------------------------------
-    # Reading order / parsing
-    # --------------------------------------------------------
-
-    parsing = extract_parsing_results(
-        data
-    )
+    layout = extract_layout(data)
+    tables = extract_tables(data)
+    parsing = extract_parsing_results(data)
 
     return {
         "text": text_result["text"],
-
-        "confidence": text_result[
-            "confidence"
-        ],
-
-        "details": text_result[
-            "details"
-        ],
-
+        "confidence": text_result["confidence"],
+        "details": text_result["details"],
         "layout": layout,
-
         "tables": tables,
-
         "parsing": parsing,
     }
 
 
 # ============================================================
-# 9. COMPLETE OCR PIPELINE
+# 7. COMPLETE OCR PIPELINE
 # ============================================================
 
-def process_document(
-    image_path: str
-) -> dict:
+
+def process_document(image_path: str) -> dict:
     """
-    Complete document OCR pipeline.
+    Run lightweight PaddleOCR on an image/document.
 
-    Flow:
+    Compatible with the existing FastAPI route.
 
-        Original image
-              ↓
-        Data preprocessing
-              ↓
-        Preprocessed image
-              ↓
-        PPStructureV3
-              ↓
-        Text extraction
-              ↓
-        Layout extraction
-              ↓
-        Table extraction
-              ↓
-        Parsing extraction
-              ↓
-        Final document result
+    Returns:
+
+    {
+        "text": "...",
+        "confidence": 0.95,
+        "details": [...],
+        "tables": [],
+        "layout": [],
+        "parsing": [],
+        "pages": [...]
+    }
     """
 
     # ========================================================
     # STEP 1 — VALIDATE INPUT
     # ========================================================
 
-    path = Path(
-        image_path
-    )
+    path = Path(image_path)
 
     if not path.exists():
 
@@ -587,126 +280,101 @@ def process_document(
         )
 
     # ========================================================
-    # STEP 2 — DATA PREPROCESSING
+    # STEP 2 — RUN LIGHTWEIGHT PADDLEOCR
     # ========================================================
-
-    preprocessed_path = preprocess_image(
-        image_path
-    )
 
     try:
 
-        # ====================================================
-        # STEP 3 — RUN PPSTRUCTUREV3
-        # ====================================================
-
-        results = pipeline.predict(
-            input=preprocessed_path
+        results = ocr.predict(
+            image_path
         )
 
-        # ====================================================
-        # STEP 4 — PROCESS RESULTS
-        # ====================================================
+    except Exception as exc:
 
-        pages = []
+        raise RuntimeError(
+            f"PaddleOCR inference failed: {exc}"
+        ) from exc
 
-        for result in results:
+    # ========================================================
+    # STEP 3 — PROCESS RESULTS
+    # ========================================================
 
-            page_result = process_page(
-                result
-            )
+    pages = []
 
-            pages.append(
-                page_result
-            )
+    for result in results:
 
-        # ====================================================
-        # STEP 5 — COMBINE DOCUMENT RESULTS
-        # ====================================================
+        page_result = process_page(result)
 
-        all_text = []
+        pages.append(page_result)
 
-        all_confidences = []
+    # ========================================================
+    # STEP 4 — COMBINE RESULTS
+    # ========================================================
 
-        all_tables = []
+    all_text = []
+    all_confidences = []
+    all_details = []
 
-        all_layout = []
+    all_tables = []
+    all_layout = []
+    all_parsing = []
 
-        all_parsing = []
+    for page in pages:
 
-        for page in pages:
+        if page["text"]:
+            all_text.append(page["text"])
 
-            if page["text"]:
-
-                all_text.append(
-                    page["text"]
-                )
-
-            all_confidences.append(
-                page["confidence"]
-            )
-
-            all_tables.extend(
-                page["tables"]
-            )
-
-            all_layout.extend(
-                page["layout"]
-            )
-
-            all_parsing.extend(
-                page["parsing"]
-            )
-
-        # ====================================================
-        # STEP 6 — DOCUMENT CONFIDENCE
-        # ====================================================
-
-        confidence = (
-            sum(all_confidences)
-            / len(all_confidences)
-            if all_confidences
-            else 0.0
+        all_confidences.append(
+            page["confidence"]
         )
 
-        # ====================================================
-        # STEP 7 — FINAL RESULT
-        # ====================================================
+        all_details.extend(
+            page["details"]
+        )
 
-        return {
-            "text": clean_text(
-                "\n".join(
-                    all_text
-                )
-            ),
+        all_tables.extend(
+            page["tables"]
+        )
 
-            "confidence": round(
-                confidence,
-                4
-            ),
+        all_layout.extend(
+            page["layout"]
+        )
 
-            "tables": all_tables,
+        all_parsing.extend(
+            page["parsing"]
+        )
 
-            "layout": all_layout,
+    # ========================================================
+    # STEP 5 — DOCUMENT CONFIDENCE
+    # ========================================================
 
-            "parsing": all_parsing,
+    confidence = (
+        sum(all_confidences) / len(all_confidences)
+        if all_confidences
+        else 0.0
+    )
 
-            "pages": pages,
-        }
+    # ========================================================
+    # STEP 6 — FINAL RESULT
+    # ========================================================
 
-    finally:
+    return {
+        "text": clean_text(
+            "\n".join(all_text)
+        ),
 
-        # ====================================================
-        # STEP 8 — DELETE TEMPORARY PREPROCESSED IMAGE
-        # ====================================================
+        "confidence": round(
+            confidence,
+            4
+        ),
 
-        if (
-            preprocessed_path != image_path
-            and os.path.exists(
-                preprocessed_path
-            )
-        ):
+        "details": all_details,
 
-            os.remove(
-                preprocessed_path
-            )
+        # Kept for FastAPI compatibility.
+        # Lightweight OCR does not generate these.
+        "tables": all_tables,
+        "layout": all_layout,
+        "parsing": all_parsing,
+
+        "pages": pages,
+    }
