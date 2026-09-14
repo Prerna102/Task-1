@@ -1,13 +1,10 @@
-
 fastapi
 uvicorn[standard]
 python-multipart
-
 streamlit
 requests
-
-paddleocr
-paddlepaddle
+paddleocr==3.7.0
+paddlepaddle==3.3.1
 
 sqlalchemy
 psycopg2-binary
