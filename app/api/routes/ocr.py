@@ -1,49 +1,30 @@
-from fastapi import (
-    APIRouter,
-    File,
-    UploadFile,
-    HTTPException,
-    Depends,
-)
-
-from sqlalchemy.orm import Session
-
-from pathlib import Path
 import uuid
-import shutil
+from pathlib import Path
 
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from app.db.database import get_db
+from app.db.database import SessionLocal
 from app.db.models import OCRResult
-
-from app.services.ocr_service import (
-    process_document,
-)
+from app.db.schemas import OCRStatusResponse, OCRUploadResponse
+from app.workers.ocr_worker import ocr_queue
 
 
-# --------------------------------------------------
-# Router
-# --------------------------------------------------
-
+# Creates the OCR API router.
 router = APIRouter()
 
 
-# --------------------------------------------------
-# Upload directory
-# --------------------------------------------------
-
+# Directory where uploaded files are stored.
 UPLOAD_DIR = Path("uploads")
 
+
+# Creates the directory 
 UPLOAD_DIR.mkdir(
     parents=True,
     exist_ok=True,
 )
 
 
-# --------------------------------------------------
-# Allowed file extensions
-# --------------------------------------------------
-
+# Supported file extensions.
 ALLOWED_EXTENSIONS = {
     ".jpg",
     ".jpeg",
@@ -55,254 +36,163 @@ ALLOWED_EXTENSIONS = {
 }
 
 
-# --------------------------------------------------
-# POST /api/ocr
-# --------------------------------------------------
-
-@router.post("")
-async def perform_ocr(
+@router.post(
+    "/api/ocr",
+    response_model=OCRUploadResponse,
+)
+async def upload_ocr(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
 ):
-    """
-    Upload an image/document, process it with
-    PaddleOCR and save the OCR result to PostgreSQL.
-    """
+    """Uploads a file and places it into the OCR queue."""
 
-    # --------------------------------------------------
-    # Validate filename
-    # --------------------------------------------------
-
+    # Checks whether a filename was provided.
     if not file.filename:
         raise HTTPException(
             status_code=400,
-            detail="No file selected.",
+            detail="Filename is required",
         )
 
-
-    # --------------------------------------------------
-    # Validate extension
-    # --------------------------------------------------
-
+    # Gets the uploaded file extension.
     extension = Path(
         file.filename
     ).suffix.lower()
 
-
+    # Validates the file extension.
     if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Unsupported file type. "
-                "Supported formats: "
-                "JPG, JPEG, PNG, BMP, WEBP, "
-                "TIFF and PDF."
-            ),
+            detail="Unsupported file type",
         )
 
+    # Creates a unique job ID.
+    job_id = str(uuid.uuid4())
 
-    # --------------------------------------------------
-    # Generate unique filename
-    # --------------------------------------------------
+    # Creates a unique physical filename.
+    # #unique_filename = (
+    #     f"{job_id}_{file.filename}"
+    # )
+    unique_filename = f"{job_id}{extension}"
 
-    file_id = str(
-        uuid.uuid4()
-    )
-
-
-    stored_filename = (
-        f"{file_id}{extension}"
-    )
-
-
-    file_path = (
-        UPLOAD_DIR / stored_filename
-    )
-
+    # Creates the destination path.
+    file_path = UPLOAD_DIR / unique_filename
 
     try:
 
-        # --------------------------------------------------
-        # Save uploaded file
-        # --------------------------------------------------
+        # Opens the destination file.
+        with open(file_path, "wb") as buffer:
 
-        with file_path.open("wb") as buffer:
+            # Reads the uploaded file in chunks.
+            while True:
 
-            shutil.copyfileobj(
-                file.file,
-                buffer,
-            )
+                # Reads up to 1 MB.
+                chunk = await file.read(1024 * 1024)
 
+                # Stops when there is no more data.
+                if not chunk:
+                    break
 
-        # --------------------------------------------------
-        # Run PaddleOCR
-        # --------------------------------------------------
-
-        ocr_result = process_document(
-            str(file_path)
-        )
-
-
-        # --------------------------------------------------
-        # Save result to PostgreSQL
-        # --------------------------------------------------
-
-        record = OCRResult(
-            filename=file.filename,
-            stored_filename=stored_filename,
-            extracted_text=ocr_result.get(
-                "text",
-                "",
-            ),
-            confidence=ocr_result.get(
-                "confidence",
-                0.0,
-            ),
-        )
-
-
-        db.add(record)
-
-        db.commit()
-
-        db.refresh(record)
-
-
-        # --------------------------------------------------
-        # Response
-        # --------------------------------------------------
-
-        return {
-            "success": True,
-
-            "id": record.id,
-
-            "filename": file.filename,
-
-            "stored_filename": stored_filename,
-
-            "text": ocr_result.get(
-                "text",
-                "",
-            ),
-
-            "confidence": ocr_result.get(
-                "confidence",
-                0.0,
-            ),
-
-            "details": ocr_result.get(
-                "details",
-                [],
-            ),
-
-            "tables": ocr_result.get(
-                "tables",
-                [],
-            ),
-
-            "layout": ocr_result.get(
-                "layout",
-                [],
-            ),
-
-            "parsing": ocr_result.get(
-                "parsing",
-                [],
-            ),
-
-            "pages": ocr_result.get(
-                "pages",
-                [],
-            ),
-        }
-
-
-    except Exception as exc:
-
-        # Rollback database transaction
-        db.rollback()
-
-
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                f"OCR processing failed: {str(exc)}"
-            ),
-        )
-
+                # Writes the chunk to disk.
+                buffer.write(chunk)
 
     finally:
 
-        file.file.close()
+        # Closes the uploaded file.
+        await file.close()
 
+    # Creates a database session.
+    db = SessionLocal()
 
-# --------------------------------------------------
-# GET /api/ocr/{ocr_id}
-# --------------------------------------------------
+    try:
 
-@router.get("/{ocr_id}")
-def get_ocr_result(
-    ocr_id: int,
-    db: Session = Depends(get_db),
-):
-    """
-    Get one OCR result by ID.
-    """
-
-    result = (
-        db.query(OCRResult)
-        .filter(
-            OCRResult.id == ocr_id
-        )
-        .first()
-    )
-
-
-    if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="OCR result not found.",
+        # Creates the initial OCR database record.
+        record = OCRResult(
+            job_id=job_id,
+            filename=file.filename,
+            file_path=str(file_path),
+            status="processing",
         )
 
+        # Adds the record.
+        db.add(record)
 
+        # Saves the record.
+        db.commit()
+
+    except Exception:
+
+        # Rolls back the failed transaction.
+        db.rollback()
+
+        # Removes the uploaded file if DB creation failed.
+        if file_path.exists():
+            file_path.unlink()
+
+        # Re-raises the error.
+        raise
+
+    finally:
+
+        # Closes the database session.
+        db.close()
+
+    # Creates the background OCR job.
+    job = {
+        "job_id": job_id,
+        "filename": file.filename,
+        "file_path": str(file_path),
+    }
+
+    # Adds the job to the OCR queue.
+    await ocr_queue.put(job)
+
+    # Returns immediately without waiting for PaddleOCR.
     return {
-        "id": result.id,
-        "filename": result.filename,
-        "text": result.extracted_text,
-        "confidence": result.confidence,
-        "created_at": result.created_at,
+        "success": True,
+        "job_id": job_id,
+        "filename": file.filename,
+        "status": "processing",
+        "message": "File added to OCR queue",
     }
 
 
-# --------------------------------------------------
-# GET /api/ocr
-# --------------------------------------------------
+@router.get(
+    "/api/ocr/status/{job_id}",
+    response_model=OCRStatusResponse,
+)
+async def get_ocr_status(job_id: str):
+    """Returns the current status/result of an OCR job."""
 
-@router.get("")
-def list_ocr_results(
-    db: Session = Depends(get_db),
-):
-    """
-    Return all OCR results.
-    """
+    # Creates a database session.
+    db = SessionLocal()
 
-    results = (
-        db.query(OCRResult)
-        .order_by(
-            OCRResult.created_at.desc()
+    try:
+
+        # Finds the requested job.
+        record = (
+            db.query(OCRResult)
+            .filter(OCRResult.job_id == job_id)
+            .first()
         )
-        .all()
-    )
 
+        # Returns 404 if the job does not exist.
+        if not record:
+            raise HTTPException(
+                status_code=404,
+                detail="OCR job not found",
+            )
 
-    return [
-        {
-            "id": result.id,
-            "filename": result.filename,
-            "text": result.extracted_text,
-            "confidence": result.confidence,
-            "created_at": result.created_at,
+        # Returns the current job information.
+        return {
+            "success": True,
+            "job_id": record.job_id,
+            "filename": record.filename,
+            "status": record.status,
+            "text": record.text,
+            "confidence": record.confidence,
+            "error": record.error,
         }
-        for result in results
-    ]
+
+    finally:
+
+        # Closes the database session.
+        db.close()
