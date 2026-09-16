@@ -7,18 +7,18 @@ import tempfile
 from paddleocr import PaddleOCR
 
 
-# ============================================================
-# 1. INITIALIZE LIGHTWEIGHT OCR PIPELINE ONCE
-# ============================================================
+# 1. INITIALIZE LIGHTWEIGHT OCR PIPELINE 
 
 ocr = PaddleOCR(
     lang="en",
+    use_doc_orientation_classify=False,
+    use_doc_unwarping=False,
+    use_textline_orientation=False,
+    enable_mkldnn=False,
 )
 
-
-# ============================================================
 # 2. HELPERS
-# ============================================================
+
 
 def _result_to_dict(result: Any) -> dict:
     """
@@ -39,9 +39,8 @@ def _result_to_dict(result: Any) -> dict:
     return data.get("res", data)
 
 
-# ============================================================
 # 3. TEXT CLEANING
-# ============================================================
+
 
 def clean_text(text: str) -> str:
     """
@@ -68,10 +67,7 @@ def clean_text(text: str) -> str:
     return "\n".join(cleaned_lines)
 
 
-# ============================================================
 # 4. EXTRACT NORMAL OCR TEXT
-# ============================================================
-
 def extract_text_from_result(data: dict) -> dict:
     """
     Extract normal OCR text from PaddleOCR result.
@@ -107,9 +103,9 @@ def extract_text_from_result(data: dict) -> dict:
         if not text:
             continue
 
-        # ----------------------------------------------------
+   
         # Confidence
-        # ----------------------------------------------------
+        
 
         score = 0.0
 
@@ -121,18 +117,17 @@ def extract_text_from_result(data: dict) -> dict:
             except (TypeError, ValueError):
                 score = 0.0
 
-        # ----------------------------------------------------
         # Bounding box
-        # ----------------------------------------------------
+      
 
         box = None
 
         if index < len(boxes):
             box = boxes[index]
 
-        # ----------------------------------------------------
+       
         # Store text
-        # ----------------------------------------------------
+        
 
         extracted_text.append(str(text))
 
@@ -161,9 +156,8 @@ def extract_text_from_result(data: dict) -> dict:
     }
 
 
-# ============================================================
 # 5. EMPTY COMPATIBILITY HELPERS
-# ============================================================
+
 
 def extract_layout(data: dict) -> list:
     """
@@ -199,9 +193,8 @@ def extract_parsing_results(data: dict) -> list:
     return []
 
 
-# ============================================================
 # 6. PROCESS ONE PAGE / IMAGE
-# ============================================================
+
 
 def process_page(result: Any) -> dict:
     """
@@ -213,15 +206,14 @@ def process_page(result: Any) -> dict:
 
     data = _result_to_dict(result)
 
-    # --------------------------------------------------------
+  
     # Normal OCR text
-    # --------------------------------------------------------
+   
 
     text_result = extract_text_from_result(data)
 
-    # --------------------------------------------------------
     # Lightweight OCR does not calculate these
-    # --------------------------------------------------------
+  
 
     layout = extract_layout(data)
     tables = extract_tables(data)
@@ -237,9 +229,7 @@ def process_page(result: Any) -> dict:
     }
 
 
-# ============================================================
 # 7. COMPLETE OCR PIPELINE
-# ============================================================
 
 
 def process_document(image_path: str) -> dict:
@@ -261,9 +251,8 @@ def process_document(image_path: str) -> dict:
     }
     """
 
-    # ========================================================
     # STEP 1 — VALIDATE INPUT
-    # ========================================================
+   
 
     path = Path(image_path)
 
@@ -279,9 +268,7 @@ def process_document(image_path: str) -> dict:
             f"Path is not a file: {image_path}"
         )
 
-    # ========================================================
     # STEP 2 — RUN LIGHTWEIGHT PADDLEOCR
-    # ========================================================
 
     try:
 
@@ -295,9 +282,9 @@ def process_document(image_path: str) -> dict:
             f"PaddleOCR inference failed: {exc}"
         ) from exc
 
-    # ========================================================
+  
     # STEP 3 — PROCESS RESULTS
-    # ========================================================
+   
 
     pages = []
 
@@ -307,9 +294,8 @@ def process_document(image_path: str) -> dict:
 
         pages.append(page_result)
 
-    # ========================================================
     # STEP 4 — COMBINE RESULTS
-    # ========================================================
+
 
     all_text = []
     all_confidences = []
@@ -344,9 +330,8 @@ def process_document(image_path: str) -> dict:
             page["parsing"]
         )
 
-    # ========================================================
     # STEP 5 — DOCUMENT CONFIDENCE
-    # ========================================================
+   
 
     confidence = (
         sum(all_confidences) / len(all_confidences)
@@ -354,9 +339,8 @@ def process_document(image_path: str) -> dict:
         else 0.0
     )
 
-    # ========================================================
     # STEP 6 — FINAL RESULT
-    # ========================================================
+    
 
     return {
         "text": clean_text(
