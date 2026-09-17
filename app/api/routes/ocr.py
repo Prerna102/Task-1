@@ -2,7 +2,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-
+from typing import List
 from app.db.database import SessionLocal
 from app.db.models import OCRResult
 from app.db.schemas import OCRStatusResponse, OCRUploadResponse
@@ -37,13 +37,13 @@ ALLOWED_EXTENSIONS = {
 
 
 @router.post(
-    "/api/ocr",
+    "",
     response_model=OCRUploadResponse,
 )
 async def upload_ocr(
     file: UploadFile = File(...),
 ):
-    """Uploads a file and places it into the OCR queue."""
+    """Uploads one file and places it into the OCR queue."""
 
     # Checks whether a filename was provided.
     if not file.filename:
@@ -61,16 +61,13 @@ async def upload_ocr(
     if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail="Unsupported file type",
+            detail=f"Unsupported file type: {file.filename}",
         )
 
     # Creates a unique job ID.
     job_id = str(uuid.uuid4())
 
     # Creates a unique physical filename.
-    # #unique_filename = (
-    #     f"{job_id}_{file.filename}"
-    # )
     unique_filename = f"{job_id}{extension}"
 
     # Creates the destination path.
@@ -93,6 +90,14 @@ async def upload_ocr(
 
                 # Writes the chunk to disk.
                 buffer.write(chunk)
+
+    except Exception:
+
+        # Removes partially saved file if upload fails.
+        if file_path.exists():
+            file_path.unlink()
+
+        raise
 
     finally:
 
@@ -127,7 +132,6 @@ async def upload_ocr(
         if file_path.exists():
             file_path.unlink()
 
-        # Re-raises the error.
         raise
 
     finally:
@@ -145,7 +149,7 @@ async def upload_ocr(
     # Adds the job to the OCR queue.
     await ocr_queue.put(job)
 
-    # Returns immediately without waiting for PaddleOCR.
+    # Returns information about the uploaded file.
     return {
         "success": True,
         "job_id": job_id,
@@ -156,7 +160,7 @@ async def upload_ocr(
 
 
 @router.get(
-    "/api/ocr/status/{job_id}",
+    "/status/{job_id}",
     response_model=OCRStatusResponse,
 )
 async def get_ocr_status(job_id: str):
