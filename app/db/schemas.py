@@ -23,3 +23,12 @@ class OCRStatusResponse(BaseModel):
     text: Optional[str] = None
     confidence: Optional[float] = None
     error: Optional[str] = None
+
+
+
+
+
+class MultipleOCRUploadResponse(BaseModel):
+    success: bool
+    files: list[OCRUploadResponse]
+    message: str
