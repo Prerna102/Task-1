@@ -11,10 +11,12 @@ import pymupdf
 from paddleocr import PaddleOCR
 import numpy as np
 from PIL import Image
+
+
 # 1. CONFIGURATION
 
 PDF_WORKERS = 4
-PDF_SEMAPHORE = 4
+PDF_SEMAPHORE = 2
 PDF_DPI = 150
 
 
@@ -38,6 +40,7 @@ def get_ocr() -> PaddleOCR:
             use_doc_unwarping=False,
             use_textline_orientation=False,
             enable_mkldnn=False,
+            cpu_threads=2,
         )
 
     return _ocr_local.ocr
