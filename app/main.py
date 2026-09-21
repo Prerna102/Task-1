@@ -23,9 +23,11 @@ async def lifespan(app: FastAPI):
     worker_tasks = [
         asyncio.create_task(ocr_worker()),
         asyncio.create_task(ocr_worker()),
+        asyncio.create_task(ocr_worker()),
+        asyncio.create_task(ocr_worker())
     ]
 
-    print("OCR workers started: 2")
+    print("OCR workers started: 4")
 
     try:
         # Keep FastAPI running
