@@ -41,7 +41,7 @@ ALLOWED_EXTENSIONS = {
     response_model=OCRUploadResponse,
 )
 async def upload_ocr(
-    file: UploadFile = File(...),
+    files: Annotated[list[UploadFile], File(...)]
 ):
     """Uploads one file and places it into the OCR queue."""
 
