@@ -1,0 +1,21 @@
+============================================================
+FINAL RESULT
+============================================================
+Workers              : 2
+Worker PIDs          : [1968, 3128]
+PDFs processed       : 10
+Successful           : 10
+Failed               : 0
+Total time           : 4284.44 seconds
+Throughput           : 0.002 PDFs/sec
+Average worker RAM   : 528 MB
+Maximum worker RAM   : 769 MB
+
+SYSTEM AFTER OCR
+------------------------------------------------------------
+CPU usage            : 14.9%
+RAM usage            : 61.8%
+RAM used             : 4.78 GB
+RAM available        : 2.95 GB
+
+(env) C:\Users\prernapandey\Downloads\Project>
