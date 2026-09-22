@@ -11,7 +11,7 @@ ocr_queue = asyncio.Queue()
 
 
 # Maximum number of OCR operations allowed simultaneously.
-ocr_semaphore = asyncio.Semaphore(4)
+ocr_semaphore = asyncio.Semaphore(2)
 
 
 def save_processing_result(
