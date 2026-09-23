@@ -18,4 +18,24 @@ RAM usage            : 61.8%
 RAM used             : 4.78 GB
 RAM available        : 2.95 GB
 
-(env) C:\Users\prernapandey\Downloads\Project>
+
+
+
+FINAL BENCHMARK RESULT
+============================================================
+Workers            : 2
+Worker PIDs        : [7324, 22888]
+PDFs processed     : 10
+Successful         : 10
+Failed             : 0
+Total time         : 3408.55 seconds
+Throughput         : 0.003 PDFs/sec
+Average worker RAM : 297 MB
+Maximum worker RAM : 633 MB
+
+SYSTEM AFTER OCR
+------------------------------------------------------------
+CPU usage          : 52.3%
+RAM usage          : 79.1%
+RAM used           : 6.12 GB
+RAM available      : 1.61 GB
