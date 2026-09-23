@@ -46,10 +46,22 @@ Base.metadata.create_all(
 
 
 # Benchmark settings
+from pathlib import Path
 
-TEST_PDF_DIR = Path("test_pdfs")
+BASE_DIR = Path(__file__).resolve().parent.parent
 
-NUMBER_OF_PDFS = 10
+TEST_PDF_DIR = BASE_DIR / "test_pdfs"
+SUPPORTED_EXTENSIONS = {
+    ".pdf",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".bmp",
+    ".webp",
+    ".tiff",
+}
+
+NUMBER_OF_DOCS= 10
 
 # Keep 2 benchmark workers for now.
 WORKERS = 2
@@ -344,11 +356,14 @@ async def test_batch_ocr():
         }
 
     # Find PDFs.
-    pdf_files = sorted(
-        TEST_PDF_DIR.glob("*.pdf")
-    )[:NUMBER_OF_PDFS]
+    doc_files = sorted(
+    file
+    for file in TEST_PDF_DIR.iterdir()
+    if file.is_file()
+    and file.suffix.lower() in SUPPORTED_EXTENSIONS
+)[:NUMBER_OF_DOCS]
 
-    if not pdf_files:
+    if not doc_files:
 
         return {
             "success": False,
@@ -372,7 +387,7 @@ async def test_batch_ocr():
 
     print(
         f"PDFs selected : "
-        f"{len(pdf_files)}"
+        f"{len(doc_files)}"
     )
 
     print(
@@ -421,7 +436,7 @@ async def test_batch_ocr():
 
     print("PDFs selected:")
 
-    for pdf in pdf_files:
+    for pdf in doc_files:
         print(
             f"  {pdf.name}"
         )
@@ -449,7 +464,7 @@ async def test_batch_ocr():
                 process_pdf,
                 pdf,
             ): pdf
-            for pdf in pdf_files
+            for pdf in doc_files
         }
 
         for future in as_completed(
@@ -536,7 +551,7 @@ async def test_batch_ocr():
         maximum_memory = 0
 
     throughput = (
-        len(pdf_files)
+        len(doc_files)
         / total_time
     )
 
@@ -624,7 +639,7 @@ async def test_batch_ocr():
 
         "benchmark": {
             "workers": WORKERS,
-            "pdf_count": len(pdf_files),
+            "pdf_count": len(doc_files),
             "total_time_seconds":
                 round(
                     total_time,
