@@ -50,7 +50,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-TEST_PDF_DIR = BASE_DIR / "test_pdfs"
+TEST_PDF_DIR = BASE_DIR / "test_pdfs2"
 SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".jpg",
@@ -68,7 +68,6 @@ WORKERS = 2
 
 
 # Normal OCR workers
-
 OCR_WORKERS = 2
 
 
