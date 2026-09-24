@@ -39,3 +39,36 @@ CPU usage          : 52.3%
 RAM usage          : 79.1%
 RAM used           : 6.12 GB
 RAM available      : 1.61 GB
+
+
+
+
+
+
+
+
+============================================================
+FINAL BENCHMARK RESULT
+============================================================
+Workers            : 2
+Worker PIDs        : [121367, 121368]
+PDFs processed     : 10
+Successful         : 10
+Failed             : 0
+Total time         : 869.00 seconds
+Throughput         : 0.012 PDFs/sec
+Average worker RAM : 1045 MB
+Maximum worker RAM : 1282 MB
+
+SYSTEM AFTER OCR
+------------------------------------------------------------
+CPU usage          : 3.6%
+RAM usage          : 54.4%
+RAM used           : 4.07 GB
+RAM available      : 3.42 GB
+INFO:     127.0.0.1:33752 - "POST /api/ocr/test-batch HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+Stopping OCR workers...
+OCR workers stopped.
+
