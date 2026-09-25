@@ -1,0 +1,33 @@
+============================================================
+FINAL BENCHMARK RESULT
+============================================================
+Workers            : 1
+Worker PIDs        : [127695]
+PDFs processed     : 100
+Successful         : 100
+Failed             : 0
+Total time         : 3719.46 seconds
+Throughput         : 0.027 PDFs/sec
+Average worker RAM : 1419 MB
+Maximum worker RAM : 1858 MB
+Average worker CPU : 51.5%
+Maximum worker CPU : 109.8%
+
+SYSTEM AFTER OCR
+------------------------------------------------------------
+CPU usage          : 11.5%
+RAM usage          : 59.7%
+RAM used           : 4.47 GB
+RAM available      : 3.02 GB
+
+============================================================
+WORKER DETAILS
+============================================================
+
+WORKER PID : 127695
+  PDFs processed : 100
+  Total time     : 3708.98 seconds
+  Average CPU    : 51.5%
+  Average RAM    : 1419 MB
+  Maximum RAM    : 1858 MB
+INFO:     127.0.0.1:60506 - "POST /api/ocr/test-batch HTTP/1.1" 200 OK

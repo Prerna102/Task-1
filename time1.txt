@@ -1,0 +1,62 @@
+
+FINAL BENCHMARK RESULT
+
+Workers            : 2
+Worker PIDs        : [121367, 121368]
+PDFs processed     : 10
+Successful         : 10
+Failed             : 0
+Total time         : 869.00 seconds
+Throughput         : 0.012 PDFs/sec
+Average worker RAM : 1045 MB
+Maximum worker RAM : 1282 MB
+
+
+
+
+
+SYSTEM AFTER OCR
+
+CPU usage          : 3.6%
+RAM usage          : 54.4%
+RAM used           : 4.07 GB
+RAM available      : 3.42 GB
+INFO:     127.0.0.1:33752 - "POST /api/ocr/test-batch HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+Stopping OCR workers...
+OCR workers stopped.
+
+
+
+FINAL BENCHMARK RESULT
+
+Workers            : 1
+Worker PIDs        : [41991]
+PDFs processed     : 10
+Successful         : 10
+Failed             : 0
+Total time         : 808.55 seconds
+Throughput         : 0.012 PDFs/sec
+Average worker RAM : 967 MB
+Maximum worker RAM : 1051 MB
+Average worker CPU : 19.6%
+Maximum worker CPU : 76.4%
+
+SYSTEM AFTER OCR
+
+CPU usage          : 2.3%
+RAM usage          : 63.9%
+RAM used           : 4.79 GB
+RAM available      : 2.70 GB
+
+WORKER DETAILS
+
+
+WORKER PID : 41991
+  PDFs processed : 10
+  Total time     : 807.41 seconds
+  Average CPU    : 19.6%
+  Average RAM    : 967 MB
+  Maximum RAM    : 1051 MB
+INFO:     127.0.0.1:42630 - "POST /api/ocr/test-batch HTTP/1.1" 200 OK
