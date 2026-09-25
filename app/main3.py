@@ -50,7 +50,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-TEST_PDF_DIR = BASE_DIR / "test_pdfs2"
+TEST_PDF_DIR = Path("testpdfs3")
 SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".jpg",
@@ -64,21 +64,21 @@ SUPPORTED_EXTENSIONS = {
 NUMBER_OF_DOCS= 100
 
 # Keep 2 benchmark workers for now.
-WORKERS = 2
+WORKERS = 1
 
 
 # Normal OCR workers
-OCR_WORKERS = 2
+OCR_WORKERS = 0
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
-    await recover_processing_jobs(
-        SessionLocal,
-        ocr_queue,
-        OCRResult,
-    )
+    # await recover_processing_jobs(
+    #     SessionLocal,
+    #     ocr_queue,
+    #     OCRResult,
+    # )
 
     # Start normal background OCR workers.
     worker_tasks = [
@@ -513,7 +513,19 @@ async def test_batch_ocr():
         for result in results
         if result["success"]
     )
+    cpu_values = [
+    result["cpu"]
+    for result in results
+    if result["success"]
+]
 
+    average_cpu = (
+        sum(cpu_values) / len(cpu_values)
+        if cpu_values
+        else 0
+    )
+
+    maximum_cpu = max(cpu_values) if cpu_values else 0
     failed = (
         len(results)
         - successful
@@ -553,7 +565,74 @@ async def test_batch_ocr():
         len(doc_files)
         / total_time
     )
+    # Worker-level statistics
 
+    worker_stats = {}
+
+    for result in results:
+
+        pid = result["pid"]
+
+        if pid not in worker_stats:
+            worker_stats[pid] = {
+                "times": [],
+                "cpu": [],
+                "memory": [],
+                "pdf_count": 0,
+            }
+
+        if result["success"]:
+
+            worker_stats[pid]["times"].append(
+                result["time"]
+            )
+
+            worker_stats[pid]["cpu"].append(
+                result["cpu"]
+            )
+
+            worker_stats[pid]["memory"].append(
+                result["memory"]
+            )
+
+            worker_stats[pid]["pdf_count"] += 1
+
+    worker_summary = {}
+
+    for pid, stats in worker_stats.items():
+
+        worker_summary[pid] = {
+            "pdfs_processed":
+                stats["pdf_count"],
+
+            "total_time":
+                sum(stats["times"]),
+
+            "average_cpu":
+                (
+                    sum(stats["cpu"])
+                    / len(stats["cpu"])
+                    if stats["cpu"]
+                    else 0
+                ),
+
+            "average_ram":
+                (
+                    sum(stats["memory"])
+                    / len(stats["memory"])
+                    if stats["memory"]
+                    else 0
+                ),
+
+            "maximum_ram":
+                (
+                    max(stats["memory"])
+                    if stats["memory"]
+                    else 0
+                ),
+        }
+
+    
     print()
     print("=" * 60)
     print("FINAL BENCHMARK RESULT")
@@ -603,7 +682,8 @@ async def test_batch_ocr():
         f"Maximum worker RAM : "
         f"{maximum_memory:.0f} MB"
     )
-
+    print(f"Average worker CPU : {average_cpu:.1f}%")
+    print(f"Maximum worker CPU : {maximum_cpu:.1f}%")
     print()
 
     print(
@@ -632,6 +712,44 @@ async def test_batch_ocr():
         f"{after.available / (1024 ** 3):.2f} GB"
     )
 
+    print()
+
+    print("=" * 60)
+    print("WORKER DETAILS")
+    print("=" * 60)
+
+    for pid in sorted(worker_summary):
+
+        stats = worker_summary[pid]
+
+        print()
+        print(f"WORKER PID : {pid}")
+
+        print(
+            f"  PDFs processed : "
+            f"{stats['pdfs_processed']}"
+        )
+
+        print(
+            f"  Total time     : "
+            f"{stats['total_time']:.2f} seconds"
+        )
+
+        print(
+            f"  Average CPU    : "
+            f"{stats['average_cpu']:.1f}%"
+        )
+
+        print(
+            f"  Average RAM    : "
+            f"{stats['average_ram']:.0f} MB"
+        )
+
+        print(
+            f"  Maximum RAM    : "
+            f"{stats['maximum_ram']:.0f} MB"
+        )
+
     # Return everything as JSON as well.
     return {
         "success": True,
@@ -652,18 +770,66 @@ async def test_batch_ocr():
         },
 
         "workers": {
-            "pids": worker_pids,
+    "pids": worker_pids,
+
+    "average_ram_mb":
+        round(
+            average_memory,
+            2,
+        ),
+
+    "maximum_ram_mb":
+        round(
+            maximum_memory,
+            2,
+        ),
+
+    "average_cpu_percent":
+        round(
+            average_cpu,
+            2,
+        ),
+
+    "maximum_cpu_percent":
+        round(
+            maximum_cpu,
+            2,
+        ),
+
+    "details": {
+        str(pid): {
+            "pdfs_processed":
+                stats["pdfs_processed"],
+
+            "total_time_seconds":
+                round(
+                    stats["total_time"],
+                    2,
+                ),
+
+            "average_cpu_percent":
+                round(
+                    stats["average_cpu"],
+                    2,
+                ),
+
             "average_ram_mb":
                 round(
-                    average_memory,
+                    stats["average_ram"],
                     2,
                 ),
+
             "maximum_ram_mb":
                 round(
-                    maximum_memory,
+                    stats["maximum_ram"],
                     2,
                 ),
-        },
+        }
+
+        for pid, stats
+        in worker_summary.items()
+    },
+},
 
         "system_before": {
             "cpu_percent":
